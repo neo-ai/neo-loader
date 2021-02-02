@@ -5,7 +5,7 @@ This is a set of utility classes for converting ML models to [TVM](https://githu
 This package does not assume any framework dependencies.
 
 ## Usage
-```
+```python
 import tarfile
 
 from neo_loader import load_model
@@ -15,7 +15,11 @@ with tarfile.open('/path/to/model.tar.gz', 'r:gz') as tf:
     tf.extractall()
     model_artifacts = tf.getnames()
 
-relay_artifacts = load_model(model_artifacts=model_artifacts, input_shape={'data': [1, 3, 224, 224]}, framework='tensorflow')
+relay_artifacts = load_model(
+    model_artifacts=model_artifacts,
+    input_shape={'data': [1, 3, 224, 224]},
+    framework='tensorflow'
+)
 
 def relay_func(relay_artifacts: Dict) -> object:
     return relay_artifacts['model_objects'][0]
