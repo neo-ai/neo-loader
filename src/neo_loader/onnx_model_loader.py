@@ -1,6 +1,7 @@
 import logging
 import onnx
 
+import tvm
 from tvm import relay
 from tvm.error import OpError
 from typing import Dict, List
@@ -50,11 +51,19 @@ class ONNXModelLoader(AbstractModelLoader):
         else:
             return model
 
+    def __dynamic_to_static(self, mod: tvm.IRModule) -> tvm.IRModule:
+            """Clean up unnecessary dynamic ops added by Onnx-relay frontend."""
+            seq = tvm.transform.Sequential([relay.transform.DynamicToStatic()])
+            with tvm.transform.PassContext(opt_level=3):
+                mod = seq(mod)
+            return mod
+
     def load_model(self) -> None:
         model = self.__get_onnx_model_from_model_artifacts()
 
         try:
             self._relay_module_object, self._params = relay.frontend.from_onnx(model, self.data_shape)
+            self._relay_module_object = self.__dynamic_to_static(self._relay_module_object)
             self.update_missing_metadata()
         except OpError:
             raise
