@@ -50,7 +50,13 @@ class TFLiteModelHelper(ModelHelper):
 
         with open(self.model_path, "rb") as f:
             tflite_model_buf = f.read()
-        self.__tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+
+        try:
+            import tflite
+            self.__tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+        except AttributeError:
+            import tflite.Model
+            self.__tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
     def extract_input_and_output_tensors(self, user_shape_dict=None) -> None:
         if user_shape_dict is None:
