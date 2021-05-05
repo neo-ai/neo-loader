@@ -15,7 +15,7 @@ extras = {
 
 setup(
     name="NeoCompilerModelLoaders",
-    version="1.0",
+    version="1.0.1",
     # declare your packages
     packages=find_packages(where="src", exclude=("test",)),
     package_dir={"": "src"},
