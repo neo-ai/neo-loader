@@ -2,7 +2,10 @@
 This is a set of utility classes for converting ML models to [TVM](https://github.com/neo-ai/tvm) Relay IR. 
 
 ## Installation
-This package does not assume any framework dependencies.
+```
+pip install NeoCompilerModelLoaders
+```
+This package does not assume any framework dependencies. It is the responsibility of the consumer to have installed the framework versions that they choose to support.
 
 ## Usage
 ```python
