@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from typing import List
+from typing import List, Dict
 from pathlib import Path
 from enum import Enum
 from collections import OrderedDict
@@ -16,12 +16,14 @@ class TFModelHelper(ModelHelper):
 
     UNLIKELY_OUTPUT_TYPES = {"Const", "Assign", "NoOp", "Placeholder"}
 
-    def __init__(self, model_path: str) -> None:
+    def __init__(self, model_path: str, data_shape: Dict[str, List[int]]) -> None:
         super(TFModelHelper, self).__init__(model_path)
+        tf.enable_eager_execution()
         self.__input_tensor_names = []
         self.__output_tensor_names = []
         self.__input_tensors = []
         self.__output_tensors = []
+        self.__data_shape = data_shape
 
     @property
     def model_type(self) -> bool:
@@ -127,9 +129,38 @@ class TFModelHelper(ModelHelper):
         self.__input_tensors = list(input_tensors.values())
         self.__output_tensors = list(output_tensors.values())
 
+    def __extract_input_and_output_tensors_from_saved_model_v2(self) -> None:
+        from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+
+        tags = self.__get_tag_set()
+        loaded = tf.compat.v2.saved_model.load(self.model_path.as_posix(), tags=tags)
+        for shape in self.__data_shape.values():
+            tensor_spec = tf.TensorSpec(tuple(shape))
+        if len(loaded.signatures) == 0:
+            f = loaded.__call__.get_concrete_function(tensor_spec)
+        elif 'serving_default' in loaded.signatures:
+            f = loaded.signatures['serving_default']
+        else:
+            f = loaded.signatures[list(loaded.signatures.keys())[0]]
+        frozen_func = convert_variables_to_constants_v2(f, lower_control_flow=True)
+
+        for tensor in frozen_func.inputs:
+            self.__input_tensor_names.append(tensor.name)
+        for tensor in frozen_func.outputs:
+            self.__output_tensor_names.append(tensor.name)
+
+        self.__input_tensors = frozen_func.inputs
+        self.__output_tensors = frozen_func.outputs
+
     def extract_input_and_output_tensors(self, user_shape_dict=None) -> None:
-        if self.model_type ==  TFModelFormat.SavedModel:
+        if self.model_type == TFModelFormat.SavedModel:
             self.__extract_input_and_output_tensors_from_saved_model()
+        else:
+            self.__extract_input_and_output_tensors_from_frozen_graph()
+
+    def extract_input_and_output_tensors_v2(self, user_shape_dict=None) -> None:
+        if self.model_type == TFModelFormat.SavedModel:
+            self.__extract_input_and_output_tensors_from_saved_model_v2()
         else:
             self.__extract_input_and_output_tensors_from_frozen_graph()
 
@@ -148,4 +179,20 @@ class TFModelHelper(ModelHelper):
             ]
         }
 
+    def get_tf_graph_from_graph_model_v2(self):
+        from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
 
+        tags = self.__get_tag_set()
+        loaded = tf.compat.v2.saved_model.load(self.model_path.as_posix(), tags=tags)
+        for shape in self.__data_shape.values():
+            tensor_spec = tf.TensorSpec(tuple(shape))
+            break
+        if len(loaded.signatures) == 0:
+            f = loaded.__call__.get_concrete_function(tensor_spec)
+        elif 'serving_default' in loaded.signatures:
+            f = loaded.signatures['serving_default']
+        else:
+            f = loaded.signatures[list(loaded.signatures.keys())[0]]
+        frozen_func = convert_variables_to_constants_v2(f, lower_control_flow=True)
+        tf_graph = frozen_func.graph.as_graph_def(add_shapes=True)
+        return tf_graph

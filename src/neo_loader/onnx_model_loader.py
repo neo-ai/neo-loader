@@ -7,12 +7,13 @@ from tvm.error import OpError
 from typing import Dict, List
 from pathlib import Path
 from .abstract_model_loader import AbstractModelLoader
+from .convert_layout_mixin import DynamicToStaticMixin
 from ._base import GraphIR
 
 logger = logging.getLogger(__name__)
 
 
-class ONNXModelLoader(AbstractModelLoader):
+class ONNXModelLoader(AbstractModelLoader, DynamicToStaticMixin):
 
     def __init__(self, model_artifacts: List[str], data_shape: Dict[str, List[int]]) -> None:
         super(ONNXModelLoader, self).__init__(model_artifacts, data_shape)
@@ -51,19 +52,12 @@ class ONNXModelLoader(AbstractModelLoader):
         else:
             return model
 
-    def __dynamic_to_static(self, mod: tvm.IRModule) -> tvm.IRModule:
-            """Clean up unnecessary dynamic ops added by Onnx-relay frontend."""
-            seq = tvm.transform.Sequential([relay.transform.DynamicToStatic()])
-            with tvm.transform.PassContext(opt_level=3):
-                mod = seq(mod)
-            return mod
-
     def load_model(self) -> None:
         model = self.__get_onnx_model_from_model_artifacts()
 
         try:
             self._relay_module_object, self._params = relay.frontend.from_onnx(model, self.data_shape)
-            self._relay_module_object = self.__dynamic_to_static(self._relay_module_object)
+            self._relay_module_object = self.dynamic_to_static(self._relay_module_object)
             self.update_missing_metadata()
         except OpError:
             raise

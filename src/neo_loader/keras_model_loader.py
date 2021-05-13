@@ -57,7 +57,10 @@ class KerasModelLoader(AbstractModelLoader):
         input_shape = self.data_shape[layer.name]
         if layer_input_shape[0] is not None and layer_input_shape[0] != input_shape[0]:
             raise RuntimeError(f'InputConfiguration: Input {layer.name} has wrong batch size in Input Shape dictionary.')
-        model_chw_shape = [layer_input_shape[3], layer_input_shape[1], layer_input_shape[2]]
+        layer_len = len(layer_input_shape)
+        model_chw_shape = [layer_input_shape[3] if 3 < layer_len else None,
+                           layer_input_shape[1] if 1 < layer_len else None,
+                           layer_input_shape[2] if 2 < layer_len else None]
         input_chw_shape = input_shape[1:4]
         if model_chw_shape != input_chw_shape:
             msg = 'InputConfiguration: Input {} has wrong shape in Input Shape dictionary. ' \
