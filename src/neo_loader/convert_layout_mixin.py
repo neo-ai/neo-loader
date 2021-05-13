@@ -14,3 +14,10 @@ class ConvertLayoutMixin:
             mod = seq(mod)
         return mod
 
+class DynamicToStaticMixin:
+    def dynamic_to_static(self, mod: tvm.IRModule) -> tvm.IRModule:
+        """Clean up unnecessary dynamic ops."""
+        seq = tvm.transform.Sequential([relay.transform.DynamicToStatic()])
+        with tvm.transform.PassContext(opt_level=3):
+            mod = seq(mod)
+        return mod

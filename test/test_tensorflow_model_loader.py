@@ -107,6 +107,7 @@ def test_tensorflow_without_any_model():
 
 def test_tensorflow_tf_model_helper_exception(patch_tf_model_helper):
     patch_tf_model_helper.return_value.extract_input_and_output_tensors.side_effect = Exception("Dummy Exception")
+    patch_tf_model_helper.return_value.extract_input_and_output_tensors_v2.side_effect = Exception("Dummy Exception")
     model_artifacts = ["test.pb"]
     data_shape = {"input": [1, 3, 224, 224]}
     loader = TensorflowModelLoader(model_artifacts, data_shape)
@@ -127,6 +128,7 @@ def test_tensorflow_tf_model_helper_get_metadata_exception(patch_tf_model_helper
 
 def test_tensorflow_tf_parser_exception(patch_tf_model_helper,patch_tf_parser):
     patch_tf_parser.return_value.parse.side_effect = Exception("Dummy Exception")
+    patch_tf_model_helper.return_value.get_tf_graph_from_graph_model_v2.side_effect = Exception("Dummy Exception")
     model_artifacts = ["test.pb"]
     data_shape = {"input": [1, 3, 224, 224]}
     loader = TensorflowModelLoader(model_artifacts, data_shape)

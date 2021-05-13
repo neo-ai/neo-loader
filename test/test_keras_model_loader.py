@@ -110,6 +110,19 @@ def test_keras_invalid_input_shape(patch_relay_keras_frontend, patch_keras_load_
     assert 'InputConfiguration: Input input has wrong shape in Input Shape dictionary.' in str(err)
 
 
+def test_keras_wrong_input_shape(patch_relay_keras_frontend, patch_keras_load_model):
+    layer = MagicMock()
+    layer.name = "input"
+    layer.input_shape = [(1, 3, 224)]
+    patch_keras_load_model.return_value.layers.__iter__.return_value = [layer]
+    model_artifacts = ["test.h5"]
+    data_shape = {"input": [1, 224, 224, 3]}
+    loader = KerasModelLoader(model_artifacts, data_shape)
+    with pytest.raises(RuntimeError) as err:
+        loader.load_model()
+    assert 'InputConfiguration: Input input has wrong shape in Input Shape dictionary.' in str(err)
+
+
 def test_keras_relay_runtime_error(patch_relay, patch_keras_load_model):
     patch_relay.frontend.from_keras.side_effect = RuntimeError("Dummy error.")
     model_artifacts = ["test.h5"]

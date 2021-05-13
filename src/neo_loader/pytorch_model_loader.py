@@ -68,9 +68,16 @@ class PyTorchModelLoader(AbstractModelLoader):
         try:
             trace = self.__get_pytorch_trace_from_model_artifact()
         except Exception as e:
-            logger.exception("Failed to load pytorch model. %s" % repr(e))
+            logger.warning("Failed to load pytorch model. %s" % repr(e))
             msg = 'InputConfiguration: Framework cannot load PyTorch model. {}'.format(e)
-            raise RuntimeError(msg)
+            try:
+                # for FCOS models
+                trace = torch.jit.load(self.__pth_file.as_posix(), map_location='cpu').float().eval()
+                self._relay_module_object, self._params = relay.frontend.from_pytorch(trace, self.data_shape)
+                self.update_missing_metadata()
+            except Exception as e:
+                logger.exception("Failed to load pytorch model. %s" % repr(e))
+                raise RuntimeError(msg)
         else:
             try:
                 self._relay_module_object, self._params = relay.frontend.from_pytorch(trace, self.data_shape)

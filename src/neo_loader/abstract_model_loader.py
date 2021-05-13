@@ -72,12 +72,20 @@ class AbstractModelLoader(ABC):
         from tvm import ir
 
         mod = relay.transform.InferType()(self._relay_module_object)
+
         if type(mod['main'].ret_type) is ir.tensor_type.TensorType:
-            return [{'dtype': mod['main'].ret_type.dtype, 'shape': [item.value for item in mod['main'].ret_type.shape]}]
+            dshape = []
+            for item in mod['main'].ret_type.shape:
+                if type(item).__name__ == 'Any':
+                    dshape.append(-1)
+                else:
+                    dshape.append(item.value)
+            return [{'dtype': mod['main'].ret_type.dtype, 'shape': dshape}]
         else:
             return [{'dtype': out.dtype, 'shape': self.__convert_relay_shape(out.shape)} for out in mod['main'].ret_type.fields]
 
     def __update_input_data_from_data_shape(self) -> None:
+        from tvm import relay
         if 'Inputs' not in self.metadata:
             inputs = []
             for key, value in self.__data_shape.items():
@@ -93,7 +101,14 @@ class AbstractModelLoader(ABC):
 
         # Get input dtypes from Relay
         if self.ir_format == GraphIR.relay:
-            relay_var_dtypes = { p.name_hint: p.type_annotation.dtype for p in self._relay_module_object["main"].params }
+            relay_var_dtypes = {}
+            for p in self._relay_module_object["main"].params:
+                if isinstance(p.type_annotation, relay.ty.TupleType):
+                    if len(p.type_annotation.fields) != 1:
+                        raise RuntimeError("Tuple input with multiple elements is currently not supported.")
+                    relay_var_dtypes[p.name_hint] = p.type_annotation.fields[0].dtype
+                else:
+                    relay_var_dtypes[p.name_hint] = p.type_annotation.dtype
             for inp in self._metadata['Inputs']:
                 if 'dtype' not in inp and inp['name'] in relay_var_dtypes:
                     inp['dtype'] = relay_var_dtypes[inp['name']]

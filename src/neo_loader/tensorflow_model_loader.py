@@ -21,6 +21,8 @@ class TensorflowModelLoader(AbstractModelLoader, ConvertLayoutMixin):
         self.__model_path = None
         self.__output_tensor_names = None
         self.__tf_graph = None
+        self.__tf_model_helper = None
+        self.__is_tf2_model = False
 
     @property
     def ir_format(self) -> GraphIR:
@@ -36,6 +38,7 @@ class TensorflowModelLoader(AbstractModelLoader, ConvertLayoutMixin):
 
     def __get_model_dir_from_model_artifacts(self) -> Optional[Path]:
         model_dirs = []
+
         for path in self.model_artifacts:
             if path.is_dir():
                 if path.joinpath('variables').exists():
@@ -74,24 +77,48 @@ class TensorflowModelLoader(AbstractModelLoader, ConvertLayoutMixin):
                                'Please make sure the framework you select is correct.')
 
     def __extract_metadata_and_output_tensor_names_from_model(self) -> None:
-        tf_model_helper = TFModelHelper(self.__model_path.as_posix())
         try:
-            tf_model_helper.extract_input_and_output_tensors()
-            self.__output_tensor_names = [name.rstrip(":0") for name in tf_model_helper.output_tensor_names]
-            self._metadata = tf_model_helper.get_metadata()
+            self.__tf_model_helper.extract_input_and_output_tensors()
+        except Exception as e:
+            logger.warning("Try to extract input and output tensor for potential TF2 model.")
+            try:
+                self.__tf_model_helper.extract_input_and_output_tensors_v2()
+                self.__is_tf2_model = True
+            except Exception as error:
+                logger.exception("Framework cannot load model. {}".format(error))
+                raise RuntimeError("InputConfiguration: Framework cannot load Tensorflow model: {}".format(e))
+
+        try:
+            self.__output_tensor_names = [name.rstrip(":0") for name in self.__tf_model_helper.output_tensor_names]
+            self._metadata = self.__tf_model_helper.get_metadata()
         except Exception as e:
             logger.exception("Framework cannot load model.")
             raise RuntimeError("InputConfiguration: Framework cannot load Tensorflow model: {}".format(e))
 
     def __extract_tf_graph(self):
-        try:
-            self.__tf_graph = TFParser(self.__model_path.as_posix(), self.__output_tensor_names).parse()
-        except Exception as e:
-            logger.exception("Failed to load TF model. %s" % repr(e))
-            raise RuntimeError("InputConfiguration: Framework cannot load Tensorflow model: {}".format(e))
+        if self.__is_tf2_model:
+            try:
+                logger.info("Loading TF model for potential TF 2.x model.")
+                self.__tf_graph = self.__tf_model_helper.get_tf_graph_from_graph_model_v2()
+            except Exception as e:
+                logger.exception("Failed to load TF model. %s" % repr(e))
+                raise RuntimeError("InputConfiguration: Framework cannot load Tensorflow model: {}".format(e))
+        else:
+            try:
+                logger.info("Loading TF model from TFParser.")
+                self.__tf_graph = TFParser(self.__model_path.as_posix(), self.__output_tensor_names).parse()
+            except Exception as e:
+                # Temp workaround for TF2 models, remove the logic when TF2 is introduced
+                try:
+                    logger.warning("Failed to load TF model from TFParser, will try to load with compat.v2. %s" % repr(e))
+                    self.__tf_graph = self.__tf_model_helper.get_tf_graph_from_graph_model_v2()
+                except Exception as error:
+                    logger.exception("Failed to load TF model. %s" % repr(e))
+                    raise RuntimeError("InputConfiguration: Framework cannot load Tensorflow model: {}".format(e))
 
     def load_model(self) -> None:
         self.__extract_model_path_from_model_artifacts()
+        self.__tf_model_helper = TFModelHelper(self.__model_path.as_posix(), self.data_shape)
         self.__extract_metadata_and_output_tensor_names_from_model()
         self.__extract_tf_graph()
         try:

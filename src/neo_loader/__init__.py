@@ -29,7 +29,11 @@ FRAMEWORK_TO_MODEL_LOADER = {
     'keras': "KerasModelLoader",
     'tflite': "TFLiteModelLoader",
     'darknet': "DarkNetModelLoader",
+    'sklearn': "SklearnModelLoader"
 }
+
+DOWNLOAD_DIR = '/compiler'
+COMPILATION_START = 'COMPILATION_START'
 
 def get_model_loader_for_framework(framework) -> AbstractModelLoader:
     if isinstance(framework, Framework):
@@ -37,6 +41,7 @@ def get_model_loader_for_framework(framework) -> AbstractModelLoader:
     module_path = f".{framework.lower()}_model_loader"
     module = importlib.import_module(module_path, package=__name__)
     return getattr(module, FRAMEWORK_TO_MODEL_LOADER[framework.lower()])
+
 
 def __clean_model_files(model_files):
     """Clean model files, such as removing hidden files.
@@ -63,6 +68,17 @@ def __clean_model_files(model_files):
     return output
 
 
+def find_archive(output_directory='/compiler', sidecar=True):
+    if sidecar:
+        while COMPILATION_START not in os.listdir(output_directory):
+            time.sleep(5)
+
+    for f in os.listdir(output_directory):
+        if f.endswith('.gz'):
+            return os.path.join(output_directory, f)
+    raise RuntimeError("InputConfiguration: Unable to find input archive")
+
+
 def extract_model_artifacts(archive=None, output_directory='/compiler', sidecar=True) -> [str]:
     if not archive:
         archive = find_archive()
@@ -87,6 +103,11 @@ def extract_model_artifacts(archive=None, output_directory='/compiler', sidecar=
     return result
 
 
+def get_framework():
+    framework = os.environ['FRAMEWORK']
+    return Framework(framework.lower())
+
+
 def validate_input_shape(framework, input_shape) -> {str: list}:
     if isinstance(input_shape, str):
         try:
@@ -102,9 +123,8 @@ def validate_input_shape(framework, input_shape) -> {str: list}:
     return input_shape
 
 
-def load_model(model_artifacts: [str] = None, input_shape: {str: [int]} = None, framework=None):
-    if not framework:
-        framework = get_framework()
+def load_model(model_artifacts: [str] = None, input_shape: {str: [int]} = None):
+    framework = get_framework()
     if not model_artifacts:
         model_artifacts = extract_model_artifact()
     if not input_shape:
