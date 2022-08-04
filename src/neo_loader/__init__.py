@@ -29,11 +29,13 @@ FRAMEWORK_TO_MODEL_LOADER = {
     'keras': "KerasModelLoader",
     'tflite': "TFLiteModelLoader",
     'darknet': "DarkNetModelLoader",
-    'sklearn': "SklearnModelLoader"
+    'sklearn': "SklearnModelLoader",
+    'tensorflow2': "Tensorflow2ModelLoader"
 }
 
 DOWNLOAD_DIR = '/compiler'
 COMPILATION_START = 'COMPILATION_START'
+
 
 def get_model_loader_for_framework(framework) -> AbstractModelLoader:
     if isinstance(framework, Framework):
@@ -56,14 +58,14 @@ def __clean_model_files(model_files):
     output : list of str
         Output model files
     """
-    logger.warn("model_files: {}".format(model_files))
+    logger.warning("model_files: {}".format(model_files))
     output = []
     for model_file in model_files:
         # remove hidden files
         if os.path.basename(model_file).startswith("."):
             continue
         output.append(model_file)
-    logger.warn("output files: {}".format(output))
+    logger.warning("output files: {}".format(output))
 
     return output
 

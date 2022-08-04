@@ -54,8 +54,8 @@ class PyTorchModelLoader(AbstractModelLoader):
         except RuntimeError:
             trace = torch.load(self.__pth_file.as_posix(), map_location="cpu").float().eval()
 
+        inputs = list(map(lambda shape: torch.zeros(shape[1]), self.data_shape))
         try:
-            inputs = list(map(lambda shape: torch.zeros(shape[1]), self.data_shape))
             return torch.jit.trace(trace, *inputs).float().eval()
         except RuntimeError:
             inputs = [inp.cuda() for inp in inputs]

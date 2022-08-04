@@ -155,3 +155,18 @@ def test_tensorflow_relay_exception(patch_tf_model_helper, patch_tf_parser, patc
     with pytest.raises(RuntimeError) as err:
         loader.load_model()
     assert 'InputConfiguration: TVM cannot convert Tensorflow model' in str(err)
+
+
+def test_model_version_message(patch_tf_model_helper, patch_tf_parser, patch_relay, patch_op_error):
+    patch_relay.frontend.from_tensorflow.side_effect = Exception("Dummy Exception")
+    patch_tf_model_helper().get_tensorflow_version.return_value="2.x"
+    model_dir = Path(tempfile.mkdtemp())
+    model_dir.joinpath("variables").mkdir(exist_ok=True)
+    model_artifacts = [model_dir.as_posix()]
+    data_shape = {"input": [1, 3, 224, 224]}
+    loader = TensorflowModelLoader(model_artifacts, data_shape)
+    with pytest.raises(RuntimeError) as err:
+        loader.load_model()
+    patch_tf_model_helper().get_tensorflow_version.assert_called()
+    assert 'Tensorflow version selected: 1.x' in str(err.value)
+    assert 'Model version founded: 2.x' in str(err.value)

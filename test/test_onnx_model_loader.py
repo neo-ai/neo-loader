@@ -15,9 +15,10 @@ def patch_relay(monkeypatch):
 
 @pytest.fixture
 def patch_onnx(monkeypatch):
-    mock_torch = MagicMock()
-    monkeypatch.setattr("neo_loader.onnx_model_loader.onnx", mock_torch)
-    return mock_torch
+    mock_onnx = MagicMock()
+    monkeypatch.setattr("neo_loader.onnx_model_loader.onnx", mock_onnx)
+    mock_onnx.__version__ = 'mocked_version'
+    return mock_onnx
 
 @pytest.fixture
 def patch_op_error(monkeypatch):
@@ -79,3 +80,5 @@ def test_onnx_relay_frontend_exception(patch_relay, patch_onnx, patch_op_error):
     with pytest.raises(Exception) as err:
         loader.load_model()
     assert 'InputConfiguration: TVM cannot convert ONNX model.' in str(err)
+    assert f"ONNX Version running: {patch_onnx.__version__}" in str(err.value)
+    assert "Model Version found:" in str(err.value)

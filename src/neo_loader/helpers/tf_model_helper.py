@@ -23,6 +23,7 @@ class TFModelHelper(ModelHelper):
         self.__output_tensor_names = []
         self.__input_tensors = []
         self.__output_tensors = []
+        self.__model_tf_version = "not found"
         self.__data_shape = data_shape
 
     @property
@@ -184,6 +185,7 @@ class TFModelHelper(ModelHelper):
 
         tags = self.__get_tag_set()
         loaded = tf.compat.v2.saved_model.load(self.model_path.as_posix(), tags=tags)
+        self.__model_tf_version = loaded.tensorflow_version
         for shape in self.__data_shape.values():
             tensor_spec = tf.TensorSpec(tuple(shape))
             break
@@ -196,3 +198,9 @@ class TFModelHelper(ModelHelper):
         frozen_func = convert_variables_to_constants_v2(f, lower_control_flow=True)
         tf_graph = frozen_func.graph.as_graph_def(add_shapes=True)
         return tf_graph
+
+    def get_tensorflow_version(self) -> str:
+        if self.model_type == TFModelFormat.FrozenGraphModel:
+            # Frozen graph creation is deprecated in TF 2.x.
+            return "1.x"
+        return self.__model_tf_version

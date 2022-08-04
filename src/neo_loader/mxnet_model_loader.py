@@ -22,6 +22,7 @@ class MxNetModelLoader(AbstractModelLoader):
 
     def __init__(self, model_artifacts: List[str], data_shape: Dict[str, List[int]]) -> None:
         super().__init__(model_artifacts, data_shape)
+        self.model_version = "not found"
 
     @property
     def ir_format(self) -> GraphIR:
@@ -38,14 +39,14 @@ class MxNetModelLoader(AbstractModelLoader):
             self.model_artifacts
         ))
 
-        
+
     def __get_symbol_file_prefix(self, symbol_file: Path):
         if "-symbol.json" in symbol_file.name:
             # MxNet standard
             return symbol_file.name.replace("-symbol.json", "")
         else:
             return symbol_file.name.replace(".json", "")
-            
+
 
     def __get_symbol_file_from_model_artifact(self) -> Path:
         symbol_files = self._get_files_from_model_artifacts_with_extensions(["json"],
@@ -53,35 +54,35 @@ class MxNetModelLoader(AbstractModelLoader):
 
         if len(symbol_files) == 1:
             return symbol_files[0]
-        
+
         if not symbol_files:
             raise RuntimeError("InputConfiguration: No symbol file found for MXNet model. "
                                "Please make sure the framework you select is correct.")
 
         if len(symbol_files) > 1:
-            # support SageMaker AP cross-validaiton, which has multiple models, 
+            # support SageMaker AP cross-validaiton, which has multiple models,
             # fetch first model that matches prefix;
             fpath = list(filter(lambda file: file.name.startswith(AP_CROSS_VALIDATION_PREFIX), symbol_files))
             if len(fpath) == 1:
                 return fpath[0]
-            else:    
+            else:
                 raise RuntimeError("InputConfiguration: Only one symbol file is allowed for MXNet model. "
                                "Please make sure the framework you select is correct.")
 
     def __get_param_file_from_model_artifact(self) -> Path:
         param_files = self._get_files_from_model_artifacts_with_extensions(["params"], exclude_files=self.SAGEMAKER_AUXILIARY_JSON_FILES)
         symbol_file = self.__get_symbol_file_from_model_artifact()
-    
+
         symbol_prefix = self.__get_symbol_file_prefix(symbol_file)
         target_params = list(filter(lambda file: file.name.startswith(symbol_prefix), param_files))
-        
+
         if not param_files:
             raise RuntimeError("InputConfiguration: No parameter file found for MXNet model. "
                                "Please make sure the framework you select is correct.")
         elif not target_params:
             raise RuntimeError(f"InputConfiguration: No parameter file found for MXNet model: {symbol_file.as_posix()} "
                                 "Please make sure the prefix of params file match the prefix of symbol file.")
-                               
+
         elif len(target_params) > 1:
             select_param_file = target_params[0]
             latest_checkpoint = int(select_param_file.name[-11:-7])
@@ -171,6 +172,8 @@ class MxNetModelLoader(AbstractModelLoader):
 
     def load_model(self) -> None:
         logger.info("Generating relay IR for mxnet model!")
+        self.model_version = self.__get_model_version()
+        logger.info("Model Version mxnet-{}".format(self.model_version))
         model_json = self.__get_model_json_from_model_artifact()
         arg_params, aux_params = self.__get_arg_and_aux_params_from_model_artifact()
         compiler_option = json.loads(os.environ.get('COMPILER_OPTIONS')) if os.environ.get('COMPILER_OPTIONS') is not None else None
@@ -194,6 +197,22 @@ class MxNetModelLoader(AbstractModelLoader):
             raise
         except Exception as e:
             logger.exception("Failed to convert mxnet model. %s" % repr(e))
-            raise RuntimeError("InputConfiguration: TVM can't convert the MXNet model. {}".format(e))
+            msg = "InputConfiguration: TVM can't convert the MXNet model. {}".format(e)
+            msg += self.model_version_hint_message()
+            raise RuntimeError(msg)
         else:
             logger.info("Successfully generated relay IR for mxnet model!")
+
+    def __get_model_version(self) -> int:
+        symbol_json_path = self.__get_symbol_file_from_model_artifact()
+        try:
+            with open(symbol_json_path, "r") as f:
+                model_json = json.load(f)
+                return str(model_json['attrs']['mxnet_version'][1])
+        except Exception as e:
+            logger.warning(f"Error when loading MXNET model version: {e}")
+        return "not found"
+
+    def model_version_hint_message(self) -> str:
+        msg = f"\nMXNET Version running: {mx.__version__}, Model Version found: {self.model_version}."
+        return msg

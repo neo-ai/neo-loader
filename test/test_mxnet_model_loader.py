@@ -15,6 +15,7 @@ def patch_relay(monkeypatch):
 def patch_mxnet(monkeypatch):
     mock_mxnet = MagicMock()
     monkeypatch.setattr("neo_loader.mxnet_model_loader.mx", mock_mxnet)
+    mock_mxnet.__version__ = 'mocked_version'
     return mock_mxnet
 
 
@@ -64,8 +65,10 @@ def test_mxnet_load_model_exception(patch_relay, patch_mxnet, patch_tvm_error):
     data_shape = {"data": [1, 3, 224, 224]}
 
     loader = MxNetModelLoader(model_artifacts, data_shape)
-    with pytest.raises(RuntimeError, match="InputConfiguration: TVM can't convert the MXNet model."):
+    with pytest.raises(RuntimeError, match=r"InputConfiguration: TVM can't convert the MXNet model.*") as err:
         loader.load_model()
+    assert f"MXNET Version running: {patch_mxnet.__version__}" in str(err.value)
+    assert f"Model Version found:" in str(err.value)
 
 
 def test_mxnet_ndarray_invalid_params_exception(patch_mxnet):
@@ -136,7 +139,7 @@ def test_mxnet_invalid_model_artifact_without_params_file():
     with pytest.raises(RuntimeError) as errinfo:
         loader.load_model()
     assert "InputConfiguration: No parameter file found for MXNet model." in str(errinfo.value)
-    
+
 
 def test_mxnet_mismatched_symbol_and_params_prefix():
     model_artifacts = ["model1-symbol.json", "model2-0010.params"]
@@ -183,8 +186,8 @@ def test_mxnet_validate_cross_validation_params(patch_relay, patch_mxnet):
         loader = MxNetModelLoader(model_artifacts, data_shape)
         loader.load_model()
     assert "InputConfiguration: No parameter file found for MXNet model: model0-symbol.json" in str(errinfo.value)
-    
-    
+
+
 def test_mxnet_support_multi_cross_validation_params(patch_relay, patch_mxnet):
     patch_relay.frontend.from_mxnet.return_value.__iter__.return_value = MagicMock(), MagicMock()
     model_artifacts = ["model0-symbol.json", "model0-0001.params", "model0-00042.params"]

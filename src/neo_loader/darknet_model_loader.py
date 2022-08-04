@@ -15,7 +15,6 @@ class DarkNetModelLoader(AbstractModelLoader):
 
     def __init__(self, model_artifacts: List[str], data_shape: Dict[str, List[int]]) -> None:
         super(DarkNetModelLoader, self).__init__(model_artifacts, data_shape)
-        self.__model_objects = None
         self.__lib_file = 'libdarknet.so'
 
     @property
@@ -23,12 +22,8 @@ class DarkNetModelLoader(AbstractModelLoader):
         return GraphIR.relay
 
     @property
-    def metadata(self) -> Dict[str, Dict]:
-        return {}
-
-    @property
     def model_objects(self) -> object:
-        return self.__model_objects
+        return self._relay_module_object, self._params
 
     @property
     def aux_files(self) -> List[Path]:
@@ -76,7 +71,8 @@ class DarkNetModelLoader(AbstractModelLoader):
         model = self.__get_darknet_model_from_model_artifacts()
 
         try:
-            self.__model_objects = relay.frontend.from_darknet(model, self.data_shape)
+            self._relay_module_object, self._params = relay.frontend.from_darknet(model, self.data_shape)
+            self.update_missing_metadata()
         except OpError:
             raise
         except Exception as e:

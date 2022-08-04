@@ -39,10 +39,6 @@ class XGBoostModelLoader(AbstractModelLoader):
         return GraphIR.treelite
 
     @property
-    def metadata(self) -> Dict[str, Dict]:
-        return {}
-
-    @property
     def model_objects(self) -> treelite.Model:
         return self.__model_objects
 

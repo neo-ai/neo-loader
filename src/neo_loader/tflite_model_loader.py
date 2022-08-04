@@ -76,7 +76,7 @@ class TFLiteModelLoader(AbstractModelLoader, ConvertLayoutMixin):
         except OpError:
             raise
         except Exception as e:
-            logger.exception("Failed to convert tensorflow model. %s" % repr(e))
+            logger.exception("Failed to convert TFLite model. %s" % repr(e))
             msg = "InputConfiguration: TVM cannot convert TFLite model. Please make sure the framework you selected is correct. {}".format(e)
             raise RuntimeError(msg)
 

@@ -25,6 +25,7 @@ def patch_op_error(monkeypatch):
     return MockedOpError
 
 def test_darknet(patch_relay, patch_darknet):
+    patch_relay.frontend.from_darknet.return_value.__iter__.return_value = [MagicMock(), "params"]
     model_artifacts = ["test.cfg", "test.weights"]
     data_shape = {"data": [1, 3, 224, 224]}
     loader = DarkNetModelLoader(model_artifacts, data_shape)

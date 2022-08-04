@@ -27,6 +27,7 @@ class SklearnModelLoader(AbstractModelLoader, DynamicToStaticMixin):
         self.mappings = []
         self.date_col = 0
         self.col_to_mapping = {}
+        self.columns = None
         self.transform_func = "transform"
 
     @property
@@ -92,13 +93,16 @@ class SklearnModelLoader(AbstractModelLoader, DynamicToStaticMixin):
         self.mappings = {"CategoricalString": mapping}
         if transformer.fill_unseen_labels:
             self.mappings["UnseenLabel"] = transformer.fill_label_value
-    
+
+    def set_columns(self, columns) -> None:
+        self.columns = columns
+
     def update_func_name(self, func_name) -> None:
         self.transform_func = func_name
 
     def update_missing_metadata(self):
         # Replace "input" data shape with actual shapes from TVM module (could be "input" still).
-        # For ambigious columns, there may be  some combination of "input_float" and "input_string"
+        # For ambiguous columns, there may be  some combination of "input_float" and "input_string"
         # (one of these or both) depending on which transfers are used. If input wasn't used, TVM
         # deletes it so this is why we use the TVM module as source of ground truth.
         input_shape = self.data_shape["input"]
@@ -108,8 +112,8 @@ class SklearnModelLoader(AbstractModelLoader, DynamicToStaticMixin):
         super().update_missing_metadata()
         for input_config in self._metadata["Inputs"]:
             input_config["dtype"] = FLOAT_32
-        for output_config in self._metadata["Outputs"]:
-            output_config["name"] = "output"
+        for id, output_config in enumerate(self._metadata["Outputs"]):
+            output_config["name"] = f"output{id}"
             
     def load_model(self) -> None:
         model = self.__get_sklearn_model_from_model_artifacts()
@@ -142,7 +146,9 @@ class SklearnModelLoader(AbstractModelLoader, DynamicToStaticMixin):
         try:
             num_rows = self.data_shape["input"][0] if self.data_shape["input"][0] != -1 else relay.Any()
             num_cols = self.data_shape["input"][-1] if self.data_shape["input"][-1] != -1 else relay.Any()
-            self._relay_module_object, self._params = relay.frontend.from_auto_ml(model, (num_rows, num_cols), FLOAT_32, self.transform_func)
+            self._relay_module_object, self._params = relay.frontend.from_auto_ml(
+                model, (num_rows, num_cols), FLOAT_32, self.transform_func, self.columns
+            )
             self._relay_module_object = self.dynamic_to_static(self._relay_module_object)
             self.update_missing_metadata()
             

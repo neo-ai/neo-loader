@@ -11,8 +11,6 @@ logger = logging.getLogger(__name__)
 class AbstractModelLoader(ABC):
 
     def __init__(self, model_artifacts: List[str], data_shape: Dict[str, List[int]]) -> None:
-        if not data_shape:
-            raise RuntimeError('InputConfiguration: data_shape not found. Make sure a valid data_shape parameter is provided.')
         if not model_artifacts:
             raise RuntimeError('InputConfiguration: No model file found.')
         self.__model_artifacts = model_artifacts
